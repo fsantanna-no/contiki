@@ -281,9 +281,9 @@ printf("-=-=-=- GO -=-=-=-\n");
 #endif
         }
 
-#ifdef COAP_CEU
-        ceu_go_event(CEU_IN_COAP_RESPONSE, message);
-#else
+//#ifdef COAP_CEU
+        //ceu_go_event(CEU_IN_COAP_RESPONSE, message);
+//#else
         if ( (transaction = coap_get_transaction_by_mid(message->mid)) )
         {
           /* Free transaction memory before callback, as it may create a new transaction. */
@@ -297,7 +297,7 @@ printf("-=-=-=- GO -=-=-=-\n");
           }
         } /* if (ACKed transaction) */
         transaction = NULL;
-#endif
+//#endif
 
       } /* Request or Response */
 

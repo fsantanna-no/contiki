@@ -65,6 +65,7 @@ do
 _printf("-=-=-=- SENT -=-=-=-\n");
         end
 
+/**
         var _coap_packet_t* msg;
         msg = await COAP_RESPONSE
                 until msg:mid == this.mid;
@@ -75,6 +76,7 @@ _printf("-=-=-=- SENT -=-=-=-\n");
                     nothing;    // nohold
                 end;
         end
+**/
 
         await 7s;
 end
