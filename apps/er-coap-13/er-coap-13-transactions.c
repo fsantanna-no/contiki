@@ -97,7 +97,7 @@ coap_new_transaction(uint16_t mid, uip_ipaddr_t *addr, uint16_t port)
 void
 coap_send_transaction(coap_transaction_t *t)
 {
-  PRINTF("Sending transaction %u\n", t->mid);
+  printf("Sending transaction %u %d %d\n", t->mid, t->port, t->packet_len);
 
   coap_send_message(&t->addr, t->port, t->packet, t->packet_len);
 

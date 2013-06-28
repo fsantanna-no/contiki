@@ -93,17 +93,21 @@ rest_activate_resource(resource_t* resource)
 void
 rest_activate_periodic_resource(periodic_resource_t* periodic_resource)
 {
+#ifdef COAP_OBSERVERS
   list_add(restful_periodic_services, periodic_resource);
   rest_activate_resource(periodic_resource->resource);
 
   rest_set_post_handler(periodic_resource->resource, REST.subscription_handler);
+#endif
 }
 
 void
 rest_activate_event_resource(resource_t* resource)
 {
+#ifdef COAP_OBSERVERS
   rest_activate_resource(resource);
   rest_set_post_handler(resource, REST.subscription_handler);
+#endif
 }
 
 list_t
@@ -149,13 +153,16 @@ rest_invoke_restful_service(void* request, void* response, uint8_t *buffer, uint
   uint8_t found = 0;
   uint8_t allowed = 0;
 
-  PRINTF("rest_invoke_restful_service url /%.*s -->\n", url_len, url);
-
   resource_t* resource = NULL;
-  const char *url = NULL;
+  char *url = NULL;
+
+  int len = REST.get_url(request, &url);
+  url[len+1] = '\0';
+  printf("// rest_invoke_restful_service [%s]\n", url);
 
   for (resource = (resource_t*)list_head(restful_services); resource; resource = resource->next)
   {
+    printf("// try [%s]\n", resource->url);
     /*if the web service handles that kind of requests and urls matches*/
     if ((REST.get_url(request, &url)==strlen(resource->url) || (REST.get_url(request, &url)>strlen(resource->url) && (resource->flags & HAS_SUB_RESOURCES)))
         && strncmp(resource->url, url, strlen(resource->url)) == 0)
@@ -163,7 +170,7 @@ rest_invoke_restful_service(void* request, void* response, uint8_t *buffer, uint
       found = 1;
       rest_resource_flags_t method = REST.get_method_type(request);
 
-      PRINTF("method %u, resource->flags %u\n", (uint16_t)method, resource->flags);
+      printf("//method %u, resource->flags %u\n", (uint16_t)method, resource->flags);
 
       if (resource->flags & method)
       {
@@ -174,6 +181,7 @@ rest_invoke_restful_service(void* request, void* response, uint8_t *buffer, uint
         {
           /* call handler function*/
           resource->handler(request, response, buffer, buffer_size, offset);
+printf("//call\n");
 
           /*call post handler if it exists*/
           if (resource->post_handler)

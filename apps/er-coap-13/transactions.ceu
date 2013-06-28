@@ -1,0 +1,104 @@
+native constant _LEDS_GREEN;
+
+native pure
+    _coap_get_transaction_by_mid(),     // TODO
+    _IS_OPTION(),
+    _MIN(),
+    _strlen(),
+    _uip_ntohs();
+
+native nohold
+    _coap_clear_transaction(),
+    _coap_init_message(),
+    _coap_parse_message(),
+    _coap_new_transaction(),    // TODO
+    _coap_get_header_block2(),
+    _coap_send_message(),   // TODO
+    _coap_send_transaction(),   // TODO
+    _coap_serialize_message(),
+    _coap_set_header_block2(),
+    _coap_set_header_token(),
+    _coap_set_payload(),
+    _PRINTF(), _PRINT6ADDR(), _PRINTBITS(),
+    _service_cbk();
+
+
+native do
+    #include "dev/leds.h"
+end
+
+input (int*,u16,_uip_ipaddr_t*,u16,_piggyback_t,_response_t,void*)
+          COAP_REQUEST;
+
+input _coap_packet_t* COAP_RESPONSE;
+
+class Transaction with
+        var u16            mid;
+        var _uip_ipaddr_t* addr;
+        var u16            port;
+
+        var _piggyback_t   piggyback_cb = null;
+        var _response_t    response_cb  = null;
+        var void*          response_dt  = null;
+do
+        _leds_toggle(_LEDS_GREEN);
+
+        var _coap_transaction_t* transaction;
+        finalize
+            transaction = _coap_new_transaction(mid, addr, port);
+        with
+            //_coap_clear_transaction(transaction);
+        end
+
+        _transaction = transaction;
+
+        var int err = _NO_ERROR;
+        if this.piggyback_cb != null then
+            this.piggyback_cb(transaction)
+                finalize with
+                    nothing;    // nohold
+                end;
+        end
+
+        if (err == _NO_ERROR) then
+            _coap_send_transaction(transaction);
+_printf("-=-=-=- SENT -=-=-=-\n");
+        end
+
+        var _coap_packet_t* msg;
+        msg = await COAP_RESPONSE
+                until msg:mid == this.mid;
+
+        if this.response_cb != null then
+            this.response_cb(this.response_dt, msg)
+                finalize with
+                    nothing;    // nohold
+                end;
+        end
+
+        await 7s;
+end
+
+do // Transactions scope
+
+    var int*            p_pret;
+    var u16             p_mid;
+    var _uip_ipaddr_t*  p_addr;
+    var u16             p_port;
+    var _piggyback_t    p_cb1;
+    var _response_t     p_cb2;
+    var void*           p_dt2;
+
+    every (p_pret,p_mid,p_addr,p_port,p_cb1,p_cb2,p_dt2) = COAP_REQUEST do
+_printf("-=-=-=- trans -=-=-=-\n");
+        *p_pret = spawn [1] Transaction with
+            this.mid   = p_mid;
+            this.addr  = p_addr;
+            this.port  = p_port;
+            this.piggyback_cb = p_cb1;
+            this.response_cb  = p_cb2;
+            this.response_dt  = p_dt2;
+        end;
+    end
+
+end // Transactions scope

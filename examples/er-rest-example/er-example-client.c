@@ -36,6 +36,8 @@
  *      Matthias Kovatsch <kovatsch@inf.ethz.ch>
  */
 
+#define COAP_CLIENT
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -77,21 +79,20 @@
 #define LOCAL_PORT      UIP_HTONS(COAP_DEFAULT_PORT+1)
 #define REMOTE_PORT     UIP_HTONS(COAP_DEFAULT_PORT)
 
-#define TOGGLE_INTERVAL 10
-
-PROCESS(coap_client_example, "COAP Client Example");
-AUTOSTART_PROCESSES(&coap_client_example);
-
+#define TOGGLE_INTERVAL 5
 
 uip_ipaddr_t server_ipaddr;
 static struct etimer et;
 
 /* Example URIs that can be queried. */
-#define NUMBER_OF_URLS 4
+#define NUMBER_OF_URLS 5
 /* leading and ending slashes only for demo purposes, get cropped automatically when setting the Uri-Path */
-char* service_urls[NUMBER_OF_URLS] = {".well-known/core", "/actuators/toggle", "battery/", "error/in//path"};
+char* service_urls[NUMBER_OF_URLS] = {
+    ".well-known/core", "/actuators/toggle", "battery/",
+    "error/in//path", "/sensors/counter"
+};
 #if PLATFORM_HAS_BUTTON
-static int uri_switch = 0;
+static int uri_switch = 4;
 #endif
 
 /* This function is will be passed to COAP_BLOCKING_REQUEST() to handle responses. */
@@ -104,10 +105,40 @@ client_chunk_handler(void *response)
   printf("|%.*s", len, (char *)chunk);
 }
 
+#define COAP_CEU 1
+
+#if COAP_CEU
+    struct ctimer timer_v;
+
+    static void timer_cb (void* ptr) {
+        ctimer_reset(&timer_v);
+        ceu_go_wclock(1000000);
+    }
+    PROCESS(timer_proc, "Timer");
+    PROCESS_THREAD(timer_proc, ev, data)
+    {
+        PROCESS_BEGIN();
+        ceu_go_init();
+        ctimer_set(&timer_v, CLOCK_SECOND, timer_cb, (void*)NULL);
+        PROCESS_END();
+    }
+#endif
+
+PROCESS(coap_client_example, "COAP Client Example");
+
+#if COAP_CEU
+AUTOSTART_PROCESSES(&coap_client_example, &timer_proc);
+#else
+AUTOSTART_PROCESSES(&coap_client_example);
+#endif
 
 PROCESS_THREAD(coap_client_example, ev, data)
 {
   PROCESS_BEGIN();
+
+#if COAP_CEU
+  ceu_go_init();
+#endif
 
   static coap_packet_t request[1]; /* This way the packet can be treated as pointer as usual. */
   SERVER_NODE(&server_ipaddr);
@@ -129,8 +160,8 @@ PROCESS_THREAD(coap_client_example, ev, data)
       printf("--Toggle timer--\n");
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
-      coap_init_message(request, COAP_TYPE_CON, COAP_POST, 0 );
-      coap_set_header_uri_path(request, service_urls[1]);
+      coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
+      coap_set_header_uri_path(request, service_urls[uri_switch]);
 
       const char msg[] = "Toggle!";
       coap_set_payload(request, (uint8_t *)msg, sizeof(msg)-1);

@@ -45,13 +45,13 @@
 
 /* Define which resources to include to meet memory constraints. */
 #define REST_RES_HELLO 0
-#define REST_RES_CHUNKS 1
-#define REST_RES_SEPARATE 1
-#define REST_RES_PUSHING 1
-#define REST_RES_EVENT 1
-#define REST_RES_SUB 1
+#define REST_RES_CHUNKS 0
+#define REST_RES_SEPARATE 0
+#define REST_RES_PUSHING 0
+#define REST_RES_EVENT 0
+#define REST_RES_SUB 0
 #define REST_RES_LEDS 0
-#define REST_RES_TOGGLE 1
+#define REST_RES_TOGGLE 0
 #define REST_RES_LIGHT 0
 #define REST_RES_BATTERY 0
 #define REST_RES_RADIO 0
@@ -504,7 +504,9 @@ pushing_periodic_handler(resource_t *r)
   coap_set_payload(notification, content, snprintf(content, sizeof(content), "TICK %u", obs_counter));
 
   /* Notify the registered observers with the given message type, observe option, and payload. */
+#ifdef COAP_OBSERVERS
   REST.notify_subscribers(r, obs_counter, notification);
+#endif
 }
 #endif
 
@@ -546,7 +548,9 @@ event_event_handler(resource_t *r)
   coap_set_payload(notification, content, snprintf(content, sizeof(content), "EVENT %u", event_counter));
 
   /* Notify the registered observers with the given message type, observe option, and payload. */
+#ifdef COAP_OBSERVERS
   REST.notify_subscribers(r, event_counter, notification);
+#endif
 }
 #endif /* PLATFORM_HAS_BUTTON */
 
@@ -643,6 +647,51 @@ toggle_handler(void* request, void* response, uint8_t *buffer, uint16_t preferre
 }
 #endif
 #endif /* PLATFORM_HAS_LEDS */
+
+/******************************************************************************/
+RESOURCE(counter, METHOD_GET, "sensors/counter", "title=\"Counter\";rt=\"Control\"");
+void
+counter_handler(void* request, void* response, uint8_t *buffer,
+               uint16_t preferred_size, int32_t *offset)
+{
+    static uint16_t counter = 0;
+    printf("SERVER: counter\n");
+
+    const uint16_t *accept = NULL;
+    int num = REST.get_header_accept(request, &accept);
+
+    if ((num==0) || (num && accept[0]==REST.type.TEXT_PLAIN))
+    {
+        REST.set_header_content_type(response, REST.type.TEXT_PLAIN);
+        snprintf((char *)buffer, REST_MAX_CHUNK_SIZE, "%u", counter);
+
+        REST.set_response_payload(response, (uint8_t *)buffer,
+                                  strlen((char *)buffer));
+    }
+    else if (num && (accept[0]==REST.type.APPLICATION_XML))
+    {
+        REST.set_header_content_type(response, REST.type.APPLICATION_XML);
+        snprintf((char *)buffer, REST_MAX_CHUNK_SIZE,
+                "<counter value=\"%u\"/>",
+                counter);
+        REST.set_response_payload(response, buffer, strlen((char *)buffer));
+    }
+    else if (num && (accept[0]==REST.type.APPLICATION_JSON))
+    {
+        REST.set_header_content_type(response, REST.type.APPLICATION_JSON);
+        snprintf((char *)buffer, REST_MAX_CHUNK_SIZE,
+                "{'counter':{'value':%u}}", counter);
+        REST.set_response_payload(response, buffer, strlen((char *)buffer));
+    }
+    else
+    {
+        REST.set_response_status(response, REST.status.NOT_ACCEPTABLE);
+        const char *msg = "Supporting content-types text/plain, application/xml, and application/json";
+        REST.set_response_payload(response, msg, strlen(msg));
+    }
+
+    counter++;
+}
 
 /******************************************************************************/
 #if REST_RES_LIGHT && defined (PLATFORM_HAS_LIGHT)
@@ -784,9 +833,33 @@ radio_handler(void* request, void* response, uint8_t *buffer, uint16_t preferred
 #endif
 
 
+#define COAP_CEU 1
+
+#if COAP_CEU
+    struct ctimer timer_v;
+
+    static void timer_cb (void* ptr) {
+        ctimer_reset(&timer_v);
+        ceu_go_wclock(1000000);
+    }
+    PROCESS(timer_proc, "Timer");
+    PROCESS_THREAD(timer_proc, ev, data)
+    {
+        PROCESS_BEGIN();
+        ceu_go_init();
+        ctimer_set(&timer_v, CLOCK_SECOND, timer_cb, (void*)NULL);
+        PROCESS_END();
+    }
+#endif
+
 
 PROCESS(rest_server_example, "Erbium Example Server");
+
+#if COAP_CEU
+AUTOSTART_PROCESSES(&rest_server_example, &timer_proc);
+#else
 AUTOSTART_PROCESSES(&rest_server_example);
+#endif
 
 PROCESS_THREAD(rest_server_example, ev, data)
 {
@@ -842,6 +915,7 @@ PROCESS_THREAD(rest_server_example, ev, data)
 #if REST_RES_TOGGLE
   rest_activate_resource(&resource_toggle);
 #endif
+  rest_activate_resource(&resource_counter);
 #endif /* PLATFORM_HAS_LEDS */
 #if defined (PLATFORM_HAS_LIGHT) && REST_RES_LIGHT
   SENSORS_ACTIVATE(light_sensor);

@@ -74,44 +74,33 @@ static service_callback_t service_cbk = NULL;
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
-static
-int
-coap_receive(void)
-{
-  coap_error_code = NO_ERROR;
 
-  PRINTF("handle_incoming_data(): received uip_datalen=%u \n",(uint16_t)uip_datalen());
+#define COAP_CEU 1
 
   /* Static declaration reduces stack peaks and program code size. */
   static coap_packet_t message[1]; /* This way the packet can be treated as pointer as usual. */
   static coap_packet_t response[1];
   static coap_transaction_t *transaction = NULL;
 
-  if (uip_newdata()) {
+    typedef int (*piggyback_t) (coap_transaction_t* transaction);
+    typedef restful_response_handler response_t;
 
-    PRINTF("receiving UDP datagram from: ");
-    PRINT6ADDR(&UIP_IP_BUF->srcipaddr);
-    PRINTF(":%u\n  Length: %u\n  Data: ", uip_ntohs(UIP_UDP_BUF->srcport), uip_datalen() );
-    PRINTBITS(uip_appdata, uip_datalen());
-    PRINTF("\n");
+#if COAP_CEU
+#include <assert.h>
+#include <stdint.h>
+typedef int64_t  s64;
+typedef int32_t  s32;
+typedef int16_t  s16;
+typedef int8_t    s8;
+typedef uint64_t u64;
+typedef uint32_t u32;
+typedef uint16_t u16;
+typedef uint8_t   u8;
+#include "_ceu_code.cceu"
+#endif
 
-    coap_error_code = coap_parse_message(message, uip_appdata, uip_datalen());
-
-    if (coap_error_code==NO_ERROR)
-    {
-
-      /*TODO duplicates suppression, if required by application */
-
-      PRINTF("  Parsed: v %u, t %u, tkl %u, c %u, mid %u\n", message->version, message->type, message->token_len, message->code, message->mid);
-      PRINTF("  URL: %.*s\n", message->uri_path_len, message->uri_path);
-      PRINTF("  Payload: %.*s\n", message->payload_len, message->payload);
-
-      /* Handle requests. */
-      if (message->code >= COAP_GET && message->code <= COAP_DELETE)
-      {
+    int piggyback (coap_transaction_t* transaction) {
         /* Use transaction buffer for response to confirmable request. */
-        if ( (transaction = coap_new_transaction(message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport)) )
-        {
           uint32_t block_num = 0;
           uint16_t block_size = REST_MAX_CHUNK_SIZE;
           uint32_t block_offset = 0;
@@ -212,10 +201,63 @@ coap_receive(void)
             coap_error_message = "NoServiceCallbck"; // no a to fit 16 bytes
           } /* if (service callback) */
 
+          return coap_error_code;
+    }
+
+static
+int
+coap_receive(void)
+{
+  coap_error_code = NO_ERROR;
+
+  PRINTF("handle_incoming_data(): received uip_datalen=%u \n",(uint16_t)uip_datalen());
+
+  if (uip_newdata()) {
+
+    PRINTF("receiving UDP datagram from: ");
+    PRINT6ADDR(&UIP_IP_BUF->srcipaddr);
+    PRINTF(":%u\n  Length: %u\n  Data: ", uip_ntohs(UIP_UDP_BUF->srcport), uip_datalen() );
+    PRINTBITS(uip_appdata, uip_datalen());
+    PRINTF("\n");
+
+    coap_error_code = coap_parse_message(message, uip_appdata, uip_datalen());
+
+    if (coap_error_code==NO_ERROR)
+    {
+
+      /*TODO duplicates suppression, if required by application */
+
+      PRINTF("  Parsed: v %u, t %u, tkl %u, c %u, mid %u\n", message->version, message->type, message->token_len, message->code, message->mid);
+      PRINTF("  URL: %.*s\n", message->uri_path_len, message->uri_path);
+      PRINTF("  Payload: %.*s\n", message->payload_len, message->payload);
+
+      /* Handle requests. */
+      if (message->code >= COAP_GET && message->code <= COAP_DELETE)
+      {
+#ifdef COAP_CEU
+        int ret;
+        tceu__int___u16__uip_ipaddr_t___u16__piggyback_t__response_t__void_
+            ps = {
+                &ret, message->mid, &UIP_IP_BUF->srcipaddr,
+                      UIP_UDP_BUF->srcport, piggyback, NULL, NULL
+            };
+printf("-=-=-=- GO -=-=-=-\n");
+        ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
+        if (! ret) {
+            coap_error_code = SERVICE_UNAVAILABLE_5_03;
+            coap_error_message = "NoFreeTraBuffer";
+        }
+        transaction = NULL;
+#else
+        /* Use transaction buffer for response to confirmable request. */
+        if ( (transaction = coap_new_transaction(message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport)) )
+        {
+          piggyback(NULL, transaction);
         } else {
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
             coap_error_message = "NoFreeTraBuffer";
         } /* if (transaction buffer) */
+#endif
       }
       else
       {
@@ -234,9 +276,14 @@ coap_receive(void)
         {
           PRINTF("Received RST\n");
           /* Cancel possible subscriptions. */
+#ifdef COAP_OBSERVER
           coap_remove_observer_by_mid(&UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport, message->mid);
+#endif
         }
 
+#ifdef COAP_CEU
+        ceu_go_event(CEU_IN_COAP_RESPONSE, message);
+#else
         if ( (transaction = coap_get_transaction_by_mid(message->mid)) )
         {
           /* Free transaction memory before callback, as it may create a new transaction. */
@@ -250,6 +297,7 @@ coap_receive(void)
           }
         } /* if (ACKed transaction) */
         transaction = NULL;
+#endif
 
       } /* Request or Response */
 
@@ -625,8 +673,13 @@ const struct rest_implementation coap_rest_implementation = {
   coap_get_query_variable,
   coap_get_post_variable,
 
+#ifdef COAP_OBSERVER
   coap_notify_observers,
   (restful_post_handler) coap_observe_handler,
+#else
+  NULL,
+  NULL,
+#endif
 
   NULL, /* default pre-handler (set separate handler after activation if needed) */
   NULL, /* default post-handler for non-observable resources */
