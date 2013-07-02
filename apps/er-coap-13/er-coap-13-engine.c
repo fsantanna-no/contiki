@@ -266,8 +266,8 @@ coap_receive(void)
 #if COAP_CEU
         int ret;
         TCEU_Transaction t = {
-            message->mid, &UIP_IP_BUF->srcipaddr,
-            UIP_UDP_BUF->srcport, request1, NULL, NULL, NULL
+            message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport,
+            request1, NULL, NULL, NULL, 0, {}
         };
         tceu__int___TCEU_Transaction_ ps = { &ret, &t };
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
@@ -637,7 +637,8 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
         TCEU_Transaction t = {
             request->mid, remote_ipaddr, remote_port,
             request2, state,
-            coap_blocking_request_callback, state
+            coap_blocking_request_callback, state,
+            0, {}
         };
         tceu__int___TCEU_Transaction_ ps = { &ret, &t };
         state->transaction = NULL;

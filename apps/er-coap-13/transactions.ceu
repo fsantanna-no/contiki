@@ -1,5 +1,5 @@
 //   text	   data	    bss	    dec	    hex	filename
-//  47510	   1150	   5470	  54130	   d372	er-example-server.sky
+//  47520	   1138	   5470	  54128	   d370	er-example-server.sky
 //  46286	    256	   6302	  52844	   ce6c	er-example-server.sky
 
 
@@ -44,14 +44,14 @@ class Transaction with
     var _uip_ipaddr_t* addr;
     var u16            port;
 
-    var u16            packet_len;
-    var u8 [_COAP_MAX_PACKET_SIZE+1]
-                       packet;
-
     var _request_t     request_cb  = null;
     var void*          request_dt  = null;
     var _response_t    response_cb = null;
     var void*          response_dt = null;
+
+    var u16            packet_len;
+    var u8 [_COAP_MAX_PACKET_SIZE+1]
+                       packet;
 do
     var _uip_ipaddr_t addr_;
         _uip_ipaddr_copy(&addr_, this.addr);
