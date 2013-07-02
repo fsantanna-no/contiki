@@ -1,5 +1,5 @@
 //   text	   data	    bss	    dec	    hex	filename
-//  47510	    532	   5470	  53512	   d108	er-example-server.sky
+//  47510	   1150	   5470	  54130	   d372	er-example-server.sky
 //  46286	    256	   6302	  52844	   ce6c	er-example-server.sky
 
 
@@ -35,8 +35,7 @@ native do
     #define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK  ((CLOCK_SECOND * COAP_RESPONSE_TIMEOUT * (COAP_RESPONSE_RANDOM_FACTOR - 1)) + 1.5)
 end
 
-input (int*,u16,_uip_ipaddr_t*,u16,_request_t,void*,_response_t,void*)
-          COAP_REQUEST;
+input (int*,_TCEU_Transaction*) COAP_REQUEST;
 
 input _coap_packet_t* COAP_RESPONSE;
 
@@ -79,7 +78,7 @@ do
 
         loop i, _COAP_MAX_RETRANSMIT do
 
-            _printf("Sending transaction %u %d %d\n", this.mid, this.port, this.packet_len);
+            _PRINTF("Sending transaction %u %d %d\n", this.mid, this.port, this.packet_len);
             _coap_send_message(&addr_, this.port, this.packet, this.packet_len);
             if not con? then
                 break;
@@ -115,24 +114,17 @@ end
 
 do // Transactions scope
 
-    var int*            p_pret;
-    var u16             p_mid;
-    var _uip_ipaddr_t*  p_addr;
-    var u16             p_port;
-    var _request_t      p_cb1;
-    var void*           p_dt1;
-    var _response_t     p_cb2;
-    var void*           p_dt2;
-
-    every (p_pret,p_mid,p_addr,p_port,p_cb1,p_dt1,p_cb2,p_dt2) = COAP_REQUEST do
-        *p_pret = spawn [1] Transaction with
-            this.mid   = p_mid;
-            this.addr  = p_addr;
-            this.port  = p_port;
-            this.request_cb  = p_cb1;
-            this.request_dt  = p_dt1;
-            this.response_cb = p_cb2;
-            this.response_dt = p_dt2;
+    var int* p_ret;
+    var _TCEU_Transaction* t;
+    every (p_ret,t) = COAP_REQUEST do
+        *p_ret = spawn [4] Transaction with
+            this.mid         = t:mid;
+            this.addr        = t:addr;
+            this.port        = t:port;
+            this.request_cb  = t:request_cb;
+            this.request_dt  = t:request_dt;
+            this.response_cb = t:response_cb;
+            this.response_dt = t:response_dt;
         end;
     end
 

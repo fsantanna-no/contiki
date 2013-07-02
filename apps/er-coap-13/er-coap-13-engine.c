@@ -113,7 +113,6 @@ typedef uint8_t   u8;
         coap_transaction_t* transaction = (coap_transaction_t*) transaction_;
 #endif
         struct request_state_t* state = (struct request_state_t*) data;
-printf("== REQ %p %p\n", transaction, data);
         if (state->block_num>0) {
             coap_set_header_block2(state->request, state->block_num, 0,
                                    REST_MAX_CHUNK_SIZE);
@@ -239,7 +238,7 @@ coap_receive(void)
 {
   coap_error_code = NO_ERROR;
 
-  printf("handle_incoming_data(): received uip_datalen=%u \n",
+  PRINTF("handle_incoming_data(): received uip_datalen=%u \n",
             (uint16_t)uip_datalen());
 
   if (uip_newdata()) {
@@ -266,11 +265,11 @@ coap_receive(void)
       {
 #if COAP_CEU
         int ret;
-        tceu__int___u16__uip_ipaddr_t___u16__request_t__void___response_t__void_
-            ps = {
-                &ret, message->mid, &UIP_IP_BUF->srcipaddr,
-                      UIP_UDP_BUF->srcport, request1, NULL, NULL, NULL
-            };
+        TCEU_Transaction t = {
+            message->mid, &UIP_IP_BUF->srcipaddr,
+            UIP_UDP_BUF->srcport, request1, NULL, NULL, NULL
+        };
+        tceu__int___TCEU_Transaction_ ps = { &ret, &t };
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
         if (! ret) {
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
@@ -339,7 +338,7 @@ coap_receive(void)
     }
     else if (coap_error_code==MANUAL_RESPONSE)  /* TODO! */
     {
-      printf("Clearing transaction for manual response");
+      PRINTF("Clearing transaction for manual response");
 #if ! COAP_CEU
       coap_clear_transaction(transaction);
 #endif
@@ -348,7 +347,7 @@ coap_receive(void)
     {
       coap_message_type_t reply_type = COAP_TYPE_ACK;
 
-      printf("ERROR %u: %s\n", coap_error_code, coap_error_message);
+      PRINTF("ERROR %u: %s\n", coap_error_code, coap_error_message);
 #if ! COAP_CEU
       coap_clear_transaction(transaction);
 #endif
@@ -635,13 +634,12 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
 
 #if COAP_CEU
         int ret;
-        tceu__int___u16__uip_ipaddr_t___u16__request_t__void___response_t__void_
-            ps = {
-                &ret, request->mid, remote_ipaddr, remote_port,
-                      request2, state,
-                      coap_blocking_request_callback, state
-            };
-printf("== 0 %p %p\n", state, state->request);
+        TCEU_Transaction t = {
+            request->mid, remote_ipaddr, remote_port,
+            request2, state,
+            coap_blocking_request_callback, state
+        };
+        tceu__int___TCEU_Transaction_ ps = { &ret, &t };
         state->transaction = NULL;
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
         if (! ret) {
