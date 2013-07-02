@@ -48,10 +48,10 @@ do
     finalize
         transaction = _coap_new_transaction(mid, addr, port);
     with
-        //_coap_clear_transaction(transaction);
+        _coap_clear_transaction(transaction);
     end
 
-    _transaction = transaction;
+    //_transaction = transaction;
 
     var int err = _NO_ERROR;
     if this.request_cb != null then

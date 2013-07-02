@@ -80,7 +80,10 @@ static service_callback_t service_cbk = NULL;
   /* Static declaration reduces stack peaks and program code size. */
   static coap_packet_t message[1]; /* This way the packet can be treated as pointer as usual. */
   static coap_packet_t response[1];
+
+#if ! COAP_CEU
   static coap_transaction_t *transaction = NULL;
+#endif
 
     typedef int (*request_t) (coap_transaction_t* transaction, void* data);
     typedef restful_response_handler response_t;
@@ -259,7 +262,6 @@ coap_receive(void)
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
             coap_error_message = "NoFreeTraBuffer";
         }
-        transaction = NULL;
 #else
         /* Use transaction buffer for response to confirmable request. */
         if ( (transaction = coap_new_transaction(message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport)) )
@@ -308,8 +310,8 @@ coap_receive(void)
             callback(callback_data, message);
           }
         } /* if (ACKed transaction) */
-#endif
         transaction = NULL;
+#endif
 
       } /* Request or Response */
 
@@ -317,19 +319,25 @@ coap_receive(void)
 
     if (coap_error_code==NO_ERROR)
     {
+#if ! COAP_CEU
       if (transaction) coap_send_transaction(transaction);
+#endif
     }
-    else if (coap_error_code==MANUAL_RESPONSE)
+    else if (coap_error_code==MANUAL_RESPONSE)  /* TODO! */
     {
-      PRINTF("Clearing transaction for manual response");
+      printf("Clearing transaction for manual response");
+#if ! COAP_CEU
       coap_clear_transaction(transaction);
+#endif
     }
     else
     {
       coap_message_type_t reply_type = COAP_TYPE_ACK;
 
-      PRINTF("ERROR %u: %s\n", coap_error_code, coap_error_message);
+      printf("ERROR %u: %s\n", coap_error_code, coap_error_message);
+#if ! COAP_CEU
       coap_clear_transaction(transaction);
+#endif
 
       /* Set to sendable error code. */
       if (coap_error_code >= 192)
