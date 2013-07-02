@@ -83,9 +83,13 @@ static service_callback_t service_cbk = NULL;
 
 #if ! COAP_CEU
   static coap_transaction_t *transaction = NULL;
+  typedef int (*request_t) (coap_transaction_t* transaction, void* data);
 #endif
 
-    typedef int (*request_t) (coap_transaction_t* transaction, void* data);
+#if COAP_CEU
+    typedef int (*request_t) (void* transaction, void* data);
+#else
+#endif
     typedef restful_response_handler response_t;
 
 #if COAP_CEU
@@ -102,7 +106,12 @@ typedef uint8_t   u8;
 #include "_ceu_code.cceu"
 #endif
 
-    int request2 (coap_transaction_t* transaction, void* data) {
+    int request2 (void* transaction_, void* data) {
+#if COAP_CEU
+        CEU_Transaction* transaction = (CEU_Transaction*) transaction_;
+#else
+        coap_transaction_t* transaction = (coap_transaction_t*) transaction_;
+#endif
         struct request_state_t* state = (struct request_state_t*) data;
 printf("== REQ %p %p\n", transaction, data);
         if (state->block_num>0) {
@@ -114,7 +123,12 @@ printf("== REQ %p %p\n", transaction, data);
         return coap_error_code;
     }
 
-    int request1 (coap_transaction_t* transaction, void* data) {
+    int request1 (void* transaction_, void* data) {
+#if COAP_CEU
+        CEU_Transaction* transaction = (CEU_Transaction*) transaction_;
+#else
+        coap_transaction_t* transaction = (coap_transaction_t*) transaction_;
+#endif
         /* Use transaction buffer for response to confirmable request. */
           uint32_t block_num = 0;
           uint16_t block_size = REST_MAX_CHUNK_SIZE;
@@ -567,7 +581,10 @@ PROCESS_THREAD(coap_receiver, ev, data)
 
   rest_activate_resource(&resource_well_known_core);
 
+#if ! COAP_CEU
   coap_register_as_transaction_handler();
+#endif
+
   coap_init_connection(SERVER_LISTEN_PORT);
 
   while(1) {
@@ -577,7 +594,9 @@ PROCESS_THREAD(coap_receiver, ev, data)
       coap_receive();
     } else if (ev == PROCESS_EVENT_TIMER) {
       /* retransmissions are handled here */
+#if ! COAP_CEU
       coap_check_transactions();
+#endif
     }
   } /* while (1) */
 

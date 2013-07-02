@@ -1,3 +1,6 @@
+#define COAP_CEU 1
+#if ! COAP_CEU
+
 /*
  * Copyright (c) 2013, Institute for Pervasive Computing, ETH Zurich
  * All rights reserved.
@@ -197,3 +200,4 @@ coap_check_transactions()
     }
   }
 }
+#endif /* ! COAP_CEU */
