@@ -69,6 +69,7 @@ struct request_state_t {
     struct pt pt;
     struct process *process;
     coap_transaction_t *transaction;
+    coap_packet_t *request;
     coap_packet_t *response;
     uint32_t block_num;
 };

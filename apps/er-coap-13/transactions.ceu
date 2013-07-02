@@ -27,58 +27,59 @@ native do
     #include "dev/leds.h"
 end
 
-input (int*,u16,_uip_ipaddr_t*,u16,_piggyback_t,_response_t,void*)
+input (int*,u16,_uip_ipaddr_t*,u16,_request_t,void*,_response_t,void*)
           COAP_REQUEST;
 
 input _coap_packet_t* COAP_RESPONSE;
 
 class Transaction with
-        var u16            mid;
-        var _uip_ipaddr_t* addr;
-        var u16            port;
+    var u16            mid;
+    var _uip_ipaddr_t* addr;
+    var u16            port;
 
-        var _piggyback_t   piggyback_cb = null;
-        var _response_t    response_cb  = null;
-        var void*          response_dt  = null;
+    var _request_t     request_cb  = null;
+    var void*          request_dt  = null;
+    var _response_t    response_cb = null;
+    var void*          response_dt = null;
 do
-        _leds_toggle(_LEDS_GREEN);
+    _leds_toggle(_LEDS_GREEN);
 
-        var _coap_transaction_t* transaction;
-        finalize
-            transaction = _coap_new_transaction(mid, addr, port);
-        with
-            //_coap_clear_transaction(transaction);
-        end
+    var _coap_transaction_t* transaction;
+    finalize
+        transaction = _coap_new_transaction(mid, addr, port);
+    with
+        //_coap_clear_transaction(transaction);
+    end
 
-        _transaction = transaction;
+    _transaction = transaction;
 
-        var int err = _NO_ERROR;
-        if this.piggyback_cb != null then
-            this.piggyback_cb(transaction)
-                finalize with
-                    nothing;    // nohold
-                end;
-        end
+    var int err = _NO_ERROR;
+    if this.request_cb != null then
+        err = this.request_cb(transaction, this.request_dt)
+            finalize with
+                nothing;    // nohold
+            end;
+    end
 
-        if (err == _NO_ERROR) then
-            _coap_send_transaction(transaction);
-_printf("-=-=-=- SENT -=-=-=-\n");
-        end
+    if (err == _NO_ERROR) then
+        _coap_send_transaction(transaction);
+    end
 
-/**
+    if this.response_cb != null then
         var _coap_packet_t* msg;
         msg = await COAP_RESPONSE
                 until msg:mid == this.mid;
 
-        if this.response_cb != null then
-            this.response_cb(this.response_dt, msg)
-                finalize with
-                    nothing;    // nohold
-                end;
-        end
-**/
+native nohold _printf();
 
-        await 7s;
+_printf("ANT %p/%p/%p\n", this.response_cb, this.response_dt, msg);
+        this.response_cb(this.response_dt, msg)
+            finalize with
+                nothing;    // nohold
+            end;
+_printf("DEP\n");
+    end
+
 end
 
 do // Transactions scope
@@ -87,19 +88,20 @@ do // Transactions scope
     var u16             p_mid;
     var _uip_ipaddr_t*  p_addr;
     var u16             p_port;
-    var _piggyback_t    p_cb1;
+    var _request_t      p_cb1;
+    var void*           p_dt1;
     var _response_t     p_cb2;
     var void*           p_dt2;
 
-    every (p_pret,p_mid,p_addr,p_port,p_cb1,p_cb2,p_dt2) = COAP_REQUEST do
-_printf("-=-=-=- trans -=-=-=-\n");
+    every (p_pret,p_mid,p_addr,p_port,p_cb1,p_dt1,p_cb2,p_dt2) = COAP_REQUEST do
         *p_pret = spawn [1] Transaction with
             this.mid   = p_mid;
             this.addr  = p_addr;
             this.port  = p_port;
-            this.piggyback_cb = p_cb1;
-            this.response_cb  = p_cb2;
-            this.response_dt  = p_dt2;
+            this.request_cb  = p_cb1;
+            this.request_dt  = p_dt1;
+            this.response_cb = p_cb2;
+            this.response_dt = p_dt2;
         end;
     end
 

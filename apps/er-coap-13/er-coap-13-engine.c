@@ -82,7 +82,7 @@ static service_callback_t service_cbk = NULL;
   static coap_packet_t response[1];
   static coap_transaction_t *transaction = NULL;
 
-    typedef int (*piggyback_t) (coap_transaction_t* transaction);
+    typedef int (*request_t) (coap_transaction_t* transaction, void* data);
     typedef restful_response_handler response_t;
 
 #if COAP_CEU
@@ -99,7 +99,19 @@ typedef uint8_t   u8;
 #include "_ceu_code.cceu"
 #endif
 
-    int piggyback (coap_transaction_t* transaction) {
+    int request2 (coap_transaction_t* transaction, void* data) {
+        struct request_state_t* state = (struct request_state_t*) data;
+printf("== REQ %p %p\n", transaction, data);
+        if (state->block_num>0) {
+            coap_set_header_block2(state->request, state->block_num, 0,
+                                   REST_MAX_CHUNK_SIZE);
+        }
+        transaction->packet_len = coap_serialize_message(state->request,
+                                    transaction->packet);
+        return coap_error_code;
+    }
+
+    int request1 (coap_transaction_t* transaction, void* data) {
         /* Use transaction buffer for response to confirmable request. */
           uint32_t block_num = 0;
           uint16_t block_size = REST_MAX_CHUNK_SIZE;
@@ -210,7 +222,8 @@ coap_receive(void)
 {
   coap_error_code = NO_ERROR;
 
-  PRINTF("handle_incoming_data(): received uip_datalen=%u \n",(uint16_t)uip_datalen());
+  printf("handle_incoming_data(): received uip_datalen=%u \n",
+            (uint16_t)uip_datalen());
 
   if (uip_newdata()) {
 
@@ -234,14 +247,13 @@ coap_receive(void)
       /* Handle requests. */
       if (message->code >= COAP_GET && message->code <= COAP_DELETE)
       {
-#ifdef COAP_CEU
+#if COAP_CEU
         int ret;
-        tceu__int___u16__uip_ipaddr_t___u16__piggyback_t__response_t__void_
+        tceu__int___u16__uip_ipaddr_t___u16__request_t__void___response_t__void_
             ps = {
                 &ret, message->mid, &UIP_IP_BUF->srcipaddr,
-                      UIP_UDP_BUF->srcport, piggyback, NULL, NULL
+                      UIP_UDP_BUF->srcport, request1, NULL, NULL, NULL
             };
-printf("-=-=-=- GO -=-=-=-\n");
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
         if (! ret) {
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
@@ -252,7 +264,7 @@ printf("-=-=-=- GO -=-=-=-\n");
         /* Use transaction buffer for response to confirmable request. */
         if ( (transaction = coap_new_transaction(message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport)) )
         {
-          piggyback(NULL, transaction);
+          request1(transaction,NULL);
         } else {
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
             coap_error_message = "NoFreeTraBuffer";
@@ -281,9 +293,9 @@ printf("-=-=-=- GO -=-=-=-\n");
 #endif
         }
 
-//#ifdef COAP_CEU
-        //ceu_go_event(CEU_IN_COAP_RESPONSE, message);
-//#else
+#if COAP_CEU
+        ceu_go_event(CEU_IN_COAP_RESPONSE, message);
+#else
         if ( (transaction = coap_get_transaction_by_mid(message->mid)) )
         {
           /* Free transaction memory before callback, as it may create a new transaction. */
@@ -296,8 +308,8 @@ printf("-=-=-=- GO -=-=-=-\n");
             callback(callback_data, message);
           }
         } /* if (ACKed transaction) */
+#endif
         transaction = NULL;
-//#endif
 
       } /* Request or Response */
 
@@ -583,6 +595,7 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
   static uint8_t block_error;
 
   state->block_num = 0;
+  state->request  = request;
   state->response = NULL;
   state->process = PROCESS_CURRENT();
 
@@ -592,19 +605,35 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
 
   do {
     request->mid = coap_get_mid();
-    if ((state->transaction = coap_new_transaction(request->mid, remote_ipaddr, remote_port)))
+
+#if COAP_CEU
+        int ret;
+        tceu__int___u16__uip_ipaddr_t___u16__request_t__void___response_t__void_
+            ps = {
+                &ret, request->mid, remote_ipaddr, remote_port,
+                      request2, state,
+                      coap_blocking_request_callback, state
+            };
+printf("== 0 %p %p\n", state, state->request);
+        state->transaction = NULL;
+        ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
+        if (! ret) {
+            PRINTF("Could not allocate transaction buffer");
+            PT_EXIT(&state->pt);
+        }
+#else
+
+    if ((state->transaction = coap_new_transaction(request->mid, remote_ipaddr, 
+    remote_port)))
     {
       state->transaction->callback = coap_blocking_request_callback;
       state->transaction->callback_data = state;
 
-      if (state->block_num>0)
-      {
-        coap_set_header_block2(request, state->block_num, 0, REST_MAX_CHUNK_SIZE);
-      }
-
-      state->transaction->packet_len = coap_serialize_message(request, state->transaction->packet);
-
+      request2(state->transaction, state);
       coap_send_transaction(state->transaction);
+#endif
+
+      // >>> COMMON
       PRINTF("Requested #%lu (MID %u)\n", state->block_num, request->mid);
 
       PT_YIELD_UNTIL(&state->pt, ev == PROCESS_EVENT_POLL);
@@ -629,12 +658,17 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
         PRINTF("WRONG BLOCK %lu/%lu\n", res_block, state->block_num);
         ++block_error;
       }
+      // <<< COMMON
+
+#if ! COAP_CEU
     }
     else
     {
       PRINTF("Could not allocate transaction buffer");
       PT_EXIT(&state->pt);
     }
+#endif
+
   } while (more && block_error<COAP_MAX_ATTEMPTS);
 
   PT_END(&state->pt);
