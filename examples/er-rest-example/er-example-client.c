@@ -102,7 +102,7 @@ client_chunk_handler(void *response)
   const uint8_t *chunk;
 
   int len = coap_get_payload(response, &chunk);
-  printf("|%.*s", len, (char *)chunk);
+  printf("|%.*s\n", len, (char *)chunk);
 }
 
 #define COAP_CEU 1
@@ -150,14 +150,14 @@ PROCESS_THREAD(coap_client_example, ev, data)
 
 #if PLATFORM_HAS_BUTTON
   SENSORS_ACTIVATE(button_sensor);
-  printf("Press a button to request %s\n", service_urls[uri_switch]);
+  PRINTF("Press a button to request %s\n", service_urls[uri_switch]);
 #endif
 
   while(1) {
     PROCESS_YIELD();
 
     if (etimer_expired(&et)) {
-      printf("--Toggle timer--\n");
+      PRINTF("--Toggle timer--\n");
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
       coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
@@ -172,7 +172,7 @@ PROCESS_THREAD(coap_client_example, ev, data)
 
       COAP_BLOCKING_REQUEST(&server_ipaddr, REMOTE_PORT, request, client_chunk_handler);
 
-      printf("\n--Done--\n");
+      PRINTF("\n--Done--\n");
 
       etimer_reset(&et);
 
@@ -184,14 +184,14 @@ PROCESS_THREAD(coap_client_example, ev, data)
       coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0);
       coap_set_header_uri_path(request, service_urls[uri_switch]);
 
-      printf("--Requesting %s--\n", service_urls[uri_switch]);
+      PRINTF("--Requesting %s--\n", service_urls[uri_switch]);
 
       PRINT6ADDR(&server_ipaddr);
       PRINTF(" : %u\n", UIP_HTONS(REMOTE_PORT));
 
       COAP_BLOCKING_REQUEST(&server_ipaddr, REMOTE_PORT, request, client_chunk_handler);
 
-      printf("\n--Done--\n");
+      PRINTF("\n--Done--\n");
 
       uri_switch = (uri_switch+1) % NUMBER_OF_URLS;
 #endif
