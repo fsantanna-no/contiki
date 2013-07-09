@@ -122,6 +122,7 @@ typedef uint8_t   u8;
         return coap_error_code;
     }
 
+    // server CB
     int request1 (void* transaction_, void* data) {
 #if COAP_CEU
         CEU_Transaction* transaction = (CEU_Transaction*) transaction_;
