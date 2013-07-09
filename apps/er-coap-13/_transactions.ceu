@@ -1,0 +1,82 @@
+class Transaction with
+    var u16            mid;
+    var _uip_ipaddr_t* addr;
+    var u16            port;
+    var u16            packet_len;
+    var u8 [_COAP_MAX_PACKET_SIZE + 1] packet;
+    var _request_t     request_cb;
+    var void*          request_dt;
+    var _response_t    response_cb;
+    var void*          response_dt;
+do
+    var _uip_ipaddr_t addr_;
+        _uip_ipaddr_copy (& addr_, this.addr);
+    var int err = _NO_ERROR;
+    if this.request_cb != null then
+        err = this.request_cb (& this, this.request_dt);
+    end
+    if err == _NO_ERROR then
+        var int con? = _COAP_TYPE_CON == ((_COAP_HEADER_TYPE_MASK & this.packet [0]) >> _COAP_HEADER_TYPE_POSITION);
+        var int interval = _COAP_RESPONSE_TIMEOUT_TICKS + (_random_rand () % (_clock_time_t) _COAP_RESPONSE_TIMEOUT_BACKOFF_MASK);
+        var _coap_packet_t* response = null;
+        loop i, _COAP_MAX_RETRANSMIT do
+            _coap_send_message (& addr_, this.port, this.packet, this.packet_len);
+            if not con? then
+                break;
+            end
+            par/or do
+                await (interval) ms;
+                interval = interval << 1;
+            with
+                var _coap_packet_t* msg;
+                msg = await COAP_RESPONSE
+                        until msg:mid == this.mid;
+                response := msg;
+                break;
+            end
+        end
+        if con? and (this.response_cb != null) then
+            this.response_cb (this.response_dt, response);
+        end
+    end
+end
+////////////////////global
+do
+    var int* p_ret;
+    var _TCEU_Transaction* t;
+    every (p_ret, t) = COAP_REQUEST do
+        *p_ret = spawn [4] Transaction with
+            this.mid         = t:mid;
+            this.addr        = t:addr;
+            this.port        = t:port;
+            this.request_cb  = t:request_cb;
+            this.request_dt  = t:request_dt;
+            this.response_cb = t:response_cb;
+            this.response_dt = t:response_dt;
+        end;
+    end
+end
+///////////////////client request
+    int ret;
+    TCEU_Transaction t = {
+        request->mid, remote_ipaddr, remote_port,
+        request2, state,
+        coap_blocking_request_callback, state,
+        0, {}
+    };
+    tceu__int___TCEU_Transaction_ ps = {& ret, & t};
+    ceu_go_event (CEU_IN_COAP_REQUEST, & ps);
+    if ret then
+        ...
+///////////////////server request
+    int ret;
+    TCEU_Transaction t = {
+        message->mid, & UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport,
+        request1, NULL, NULL, NULL, 0, {}
+    };
+    tceu__int___TCEU_Transaction_ ps = {& ret, & t};
+    ceu_go_event (CEU_IN_COAP_REQUEST, & ps);
+    if ret then
+        ...
+///////////////////response
+    ceu_go_event(CEU_IN_COAP_RESPONSE, message);
