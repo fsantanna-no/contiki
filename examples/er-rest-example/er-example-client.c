@@ -161,7 +161,9 @@ PROCESS_THREAD(coap_client_example, ev, data)
 
       /* prepare request, TID is set by COAP_BLOCKING_REQUEST() */
       coap_init_message(request, COAP_TYPE_CON, COAP_GET, 0 );
+#if PLATFORM_HAS_BUTTON
       coap_set_header_uri_path(request, service_urls[uri_switch]);
+#endif
 
       const char msg[] = "Toggle!";
       coap_set_payload(request, (uint8_t *)msg, sizeof(msg)-1);

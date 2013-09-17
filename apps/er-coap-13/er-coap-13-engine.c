@@ -270,7 +270,7 @@ coap_receive(void)
             message->mid, &UIP_IP_BUF->srcipaddr, UIP_UDP_BUF->srcport,
             request1, NULL, NULL, NULL, 0, {}
         };
-        tceu__int___TCEU_Transaction_ ps = { &ret, &t };
+        tceu__int___void_ ps = { &ret, &t };
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
         if (! ret) {
             coap_error_code = SERVICE_UNAVAILABLE_5_03;
@@ -641,7 +641,7 @@ PT_THREAD(coap_blocking_request(struct request_state_t *state, process_event_t e
             coap_blocking_request_callback, state,
             0, {}
         };
-        tceu__int___TCEU_Transaction_ ps = { &ret, &t };
+        tceu__int___void_ ps = { &ret, &t };
         state->transaction = NULL;
         ceu_go_event(CEU_IN_COAP_REQUEST, &ps);
         if (! ret) {

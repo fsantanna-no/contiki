@@ -1,8 +1,6 @@
 //   text	   data	    bss	    dec	    hex	filename
-//  47284	   1138	   5470	  53892	   d284	er-example-server.sky
-//  47520	   1138	   5470	  54128	   d370	er-example-server.sky
-//  46286	    256	   6302	  52844	   ce6c	er-example-server.sky
-
+//  47284	   1140	   5470	  53894	   d286	ceu.sky
+//  46106	    256	   6302	  52664	   cdb8	c.sky
 
 native constant _LEDS_GREEN;
 
@@ -31,12 +29,12 @@ native nohold
 
 
 native do
-    #include "dev/leds.h"
-    #define COAP_RESPONSE_TIMEOUT_TICKS         (CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
-    #define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK  ((CLOCK_SECOND * COAP_RESPONSE_TIMEOUT * (COAP_RESPONSE_RANDOM_FACTOR - 1)) + 1.5)
+    ##include "dev/leds.h"
+    ##define COAP_RESPONSE_TIMEOUT_TICKS         (CLOCK_SECOND * COAP_RESPONSE_TIMEOUT)
+    ##define COAP_RESPONSE_TIMEOUT_BACKOFF_MASK  ((CLOCK_SECOND * COAP_RESPONSE_TIMEOUT * (COAP_RESPONSE_RANDOM_FACTOR - 1)) + 1.5)
 end
 
-input (int*,_TCEU_Transaction*) COAP_REQUEST;
+input (int*,void*) COAP_REQUEST;
 
 input _coap_packet_t* COAP_RESPONSE;
 
@@ -116,8 +114,10 @@ end
 do // Transactions scope
 
     var int* p_ret;
+    var void* t_;
     var _TCEU_Transaction* t;
-    every (p_ret,t) = COAP_REQUEST do
+    every (p_ret,t_) = COAP_REQUEST do
+        t = (_TCEU_Transaction*) t_;
         *p_ret = spawn [4] Transaction with
             this.mid         = t:mid;
             this.addr        = t:addr;
